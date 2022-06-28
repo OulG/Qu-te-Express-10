@@ -45,16 +45,35 @@ const findByEmailWithDifferentId = (email, id) => {
     .then(([results]) => results[0]);
 };
 
-const create = (data) => {
-  return db.query('INSERT INTO users SET ?', data).then(([result]) => {
-    const id = result.insertId;
-    return { ...data, id };
-  });
+const create = ({ firstname, lastname, city, language, email, password, token }) => {
+  return hashPassword(password).then((hash) => {
+    return db
+      .query('INSERT INTO users SET ?', {
+        firstname, 
+        lastname, 
+        city, 
+        language, 
+        email,
+        hashedPassword: hash,
+        token})
+      .then(([result]) => {
+        console.log(result)
+        const id = result.insertId;
+        return { id, firstname, lastname, city, language, email, hash, token  };
+        });
+    }); 
 };
+
+// const create = (data) => {
+//   return db.query('INSERT INTO users SET ?', data).then(([result]) => {
+//     const id = result.insertId;
+//     return { ...data, id };
+//   });
+// };
 
 const update = (id, newAttributes) => {
   return db
-  .query('UPDATE users SET ? WHERE id = ?', [newAttributes, id]);
+  .query('UPDATE users SET ? WHERE id = ?', [ newAttributes, id]);
 };
 
 const destroy = (id) => {
@@ -78,6 +97,11 @@ const verifyPassword = (plainPassword, hashedPassword) => {
   return argon2.verify(hashedPassword, plainPassword, hashingOptions);
 };
 
+const findByToken = (token) => {
+  return db
+    .query("SELECT * FROM users WHERE token = ?", [token]).then(([result]) => result[0])
+}
+
 module.exports = {
   findMany,
   findOne,
@@ -89,4 +113,5 @@ module.exports = {
   findByEmailWithDifferentId,
   hashPassword,
   verifyPassword,
+  findByToken
 };

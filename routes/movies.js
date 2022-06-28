@@ -1,27 +1,39 @@
 const moviesRouter = require('express').Router();
 const Movie = require('../models/movie');
+const User = require('../models/user');
+
+// moviesRouter.get('/', (req, res) => {
+//   const { max_duration, color } = req.query;
+//   Movie.findMany({ filters: { max_duration, color } })
+//     .then((movies) => {
+//       res.json(movies);
+//     })
+//     .catch((err) => {
+//       console.log(err);
+//       res.status(500).send('Error retrieving movies from database');
+//     });
+// });
 
 moviesRouter.get('/', (req, res) => {
-  const { max_duration, color } = req.query;
-  Movie.findMany({ filters: { max_duration, color } })
-    .then((movies) => {
-      res.json(movies);
-    })
-    .catch((err) => {
-      console.log(err);
-      res.status(500).send('Error retrieving movies from database');
-    });
-});
+  const token = req.cookies.user_token
 
-moviesRouter.get('/', async (req, res) => {
-  const { max_duration, color } = req.query;
-  Movie.findMany({ filters: { max_duration, color } })
-    .then((movies) => {
-      res.json(movies);
+  // Si token, on veux renvoyer uniquement les films crée par l'utilisateur reconnu par le token
+  if (token) {
+    User.findByToken(token)
+    .then(user => {
+      const { max_duration, color } = req.query;
+      const id = user.id
+      Movie.findMany({ filters: { max_duration, color, id } })
+        .then((movies) => {
+          res.json(movies);
+        })
+        .catch((err) => {
+          res.status(500).send('Error retrieving movies from database');
+        });
     })
-    .catch((err) => {
-      res.status(500).send('Error retrieving movies from database');
-    });
+  } else {
+    res.status(401).send('Error')
+  }
 });
 
 moviesRouter.get('/:id', (req, res) => {
@@ -38,19 +50,36 @@ moviesRouter.get('/:id', (req, res) => {
     });
 });
 
-moviesRouter.post('/', (req, res) => {
-  const error = Movie.validate(req.body);
-  if (error) {
-    res.status(422).json({ validationErrors: error.details });
-  } else {
-    Movie.create(req.body)
-      .then((createdMovie) => {
-        res.status(201).json(createdMovie);
-      })
-      .catch((err) => {
-        console.error(err);
-        res.status(500).send('Error saving the movie');
-      });
+moviesRouter.post('/', async (req, res) => {
+  console.log(req.cookies)
+  // Verifie si cookie & si oui recupere cookie dans une variable
+  if (req.cookies.user_token) {
+    const token = req.cookies.user_token
+    User.findByToken(token).then((user) => {
+      // Si utilisateur existe
+      if (user) {
+        const error = Movie.validate(req.body);
+        // Si erreur de validation, on envoi erreur
+        if (error) {
+          res.status(422).json({ validationErrors: error.details });
+        // Sinon je crée le film
+        } else {
+          const id = parseInt(user.id)
+          Movie.create({...req.body, user_id: id})
+          // On ajoute son id au livre qu'il vient de créer
+            .then((createdMovie) => {
+              res.status(201).json(createdMovie);
+            })
+            .catch((err) => {
+              console.error(err);
+              res.status(500).send('Error saving the movie');
+            });
+        }
+      // si utilisateur n'existe pas
+      } else {
+        res.sendStatus(401)
+      }
+    }).catch((err) => console.log(err))
   }
 });
 
